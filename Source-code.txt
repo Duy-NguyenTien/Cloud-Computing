@@ -1,0 +1,154 @@
+
+-Tạo 1 database chứa các bảng để mình load dữ liệu vào 
+CREATE DATABASE  store_dtb;
+
+-Sau đó lần lượt tạo các bảng bên dưới vào store_dtb để lưu trữ dữ liệu
+
++Tạo bảng categories:
+CREATE TABLE categories(
+	category_id int,
+	category_department_id int,
+	category_name String)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
++Load dữ liệu đã có vào bảng categories
+LOAD DATA LOCAL INPATH '/home/hiennhung/part-00000'
+OVERWRITE INTO TABLE categories;
+
++Tạo bảng customers
+CREATE TABLE customers(
+	customer_id int,
+	customer_fname string,
+	customer_lname string,
+	customer_email string,
+	customer_password string,
+	customer_street string,
+	customer_city string,
+	customer_state string,
+	customer_zipcode string)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
++Load dữ liệu vào bảng customers
+LOAD DATA LOCAL INPATH '/home/hiennhung/part-00000.1'
+OVERWRITE INTO TABLE customers;
+
++Tạo bảng departments
+CREATE TABLE departments(
+	department_id int,
+	department_name string)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
++Load dữ liệu vào bảng departments
+LOAD DATA LOCAL INPATH '/home/hiennhung/part-00000.2'
+OVERWRITE INTO TABLE departments;
+
++Tạo bảng order_items
+CREATE TABLE order_items(
+	order_item_id int,
+	order_item_order_id int,
+	order_item_product_id int,
+	order_item_quantity int,
+	order_item_subtotal float,
+	order_item_product_price float)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
++Load dữ liệu vào bảng order_items
+LOAD DATA LOCAL INPATH '/home/hiennhung/part-00000.3'
+OVERWRITE INTO TABLE order_items;
+
++Tạo bảng orders
+CREATE TABLE orders(
+	order_id int,
+	order_date DATE,
+	order_customer_id int ,
+	order_status string)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
++Load dữ liệu vào bảng orders
+LOAD DATA LOCAL INPATH '/home/hiennhung/part-00000.4'
+OVERWRITE INTO TABLE orders;
+
++Tạo bảng products
+CREATE TABLE products(
+	product_id int,
+	product_category_id int,
+	product_name string,
+	product_description string,
+	product_price float,
+	product_image string)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
++Load dữ liệu vào bảng products
+LOAD DATA LOCAL INPATH '/home/hiennhung/part-00000.5'
+OVERWRITE INTO TABLE products;
+
+
+-Sau khi đã hoàn tất load dữ liệu vào các bảng trên , ta tạo database store_fact để lưu trữ các bảng dim và fact cho datawarehouse
+
++Tạo bảng orders_dim và insert dữ liệu cho bảng từ bảng orders ở database store_dtb
+CREATE TABLE orders_dim (
+	order_id int,
+	order_date DATE,
+	order_customer_id int)
+insert into table orders_dim
+select order_id,order_date,order_customer_id from store_dtb.orders
+
++Tạo bảng departments_dim và insert dữ liệu cho bảng từ bảng departments
+CREATE TABLE departments_dim(
+	department_id int,
+	department_name String)
+insert into table departments_dim
+select department_id,department_name from store_dtb.departments
+
++Tạo bảng categories_dim và insert dữ liệu cho bảng từ bảng categories
+CREATE TABLE categories_dim(
+	category_id int,
+	category_department_id int,
+	category_name String)
+insert into table categories_dim
+select category_id,category_department_id,category_name from store_dtb.categories;
+
++Tạo bảng products_dim insert dữ liệu cho bảng từ bảng products
+CREATE TABLE products_dim(
+	product_id int,
+	product_category_id int,
+	product_name String,
+	product_price float)
+insert into table products_dim
+select product_id,product_category_id,product_name , product_price from store_dtb.products;
+
++Cuối cùng ta tạo bảng order_fact chứa những thông tin trong business processes
+CREATE TABLE order_fact(
+	order_item_order_id int,
+	order_item_order_date string,
+	order_item_product_id int,
+	order_item_quantity int,
+	order_item_subtotal float,
+	order_item_product_price float)
+partitioned by(product_category_department string);
+
++Sau đó ta load dữ liệu vào bảng order_fact bằng câu lệnh sau:
+
+insert overwrite table order_fact partition(product_category_department)
+select order_item_order_id,order_date,order_item_product_id,order_item_quantity,
+order_item_subtotal,product_price,department_name
+from retail_ods.order_items oi join products_dim p on oi.order_item_product_id=p.product_id
+join categories_dim c on p.product_category_id=c.category_id
+join departments_dim d on c.category_department_id=d.department_id
+join orders_dim o on o.order_id=oi.order_item_order_id;
+
+-Sau khi đã tạo và load xong dữ liệu vào các dim và bảng fact ta sẽ thử truy vấn bảng fact bằng câu lệnh sau:
+
+select product_category_department,order_item_order_date,sum(order_item_subtotal) order_item_subtotal
+from order_fact group by product_category_department,order_item_order_date
+order by order_item_order_date,order_item_subtotal desc;
+
+
+
+
