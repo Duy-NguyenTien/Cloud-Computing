@@ -3,8 +3,6 @@ Tập dữ liệu được tham khảo từ Cloudera Quick Start VM.
 
 Đề tài: Tì̀m hiểu Apache Hive - Xây dựng data warehouse đơn giản
 
-Thành viên:
-  + Nguyễn Tiến Duy
 
 Tập dữ liệu bao gồm 6 bảng: 
 
